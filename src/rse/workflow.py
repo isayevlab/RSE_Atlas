@@ -7,7 +7,7 @@ from rdkit import Chem
 from rdkit.Chem import BondStereo, BondDir
 # from rdkit.Chem import Draw
 import itertools
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Dict
 # from utils import visualize_mol_idx
 
 
@@ -293,16 +293,127 @@ class BreakRing(object):
         return results
 
 
-if __name__ == "__main__":
-    #Input
-    smi = 'CC1CCCOCC1'
-    smi2 = "CC1COCC2CC21"
-    smi3 = "C1C=C1"
-    smi4 = 'C1=CCC1'
+# class SmiProcessor(object):
+def process_smi(path: str, depth: int=1):
+    '''Process the input smi file, 
+    return a path to the output file where the rings and idx are written in smi format.
+    For normal and relaxed cases, only keep 1 broken ring.
+    For forced cases, keep all broken rings.'''
+    # self.path = path
+    # self.depth = depth
 
-    #Default performance
-    br = BreakRing(smi4, 0, True)
-    # ring_bonds = br.detect_rings()
-    # print(ring_bonds)
-    broken_smiles = br.get_broken_ring()
-    print(broken_smiles)
+    # Read input file into a dictionary
+    with open(path, 'r') as f:
+        data = f.readlines()
+    dct = {}
+    name_id_dict = {}
+    for i, line in enumerate(data):
+        smi, name = line.strip().split()
+        dct[str(i)] = smi
+        name_id_dict[name] = str(i)
+    id_name_dict = {v: k for k, v in name_id_dict.items()}
+
+# def process(self) -> str:
+    normal, relaxed, forced, failed, valid = {}, {}, {}, {}, {}
+    for idx, smi in dct.items():
+        mol = Chem.MolFromSmiles(smi)
+        if mol is not None:
+            br = BreakRing(smi, depth)
+            broken_rings = br.get_broken_ring()
+
+            if len(broken_rings) == 0:
+                depth_ = depth
+                while ((depth_ >= 1) and (len(broken_rings) ==0)):
+                    depth_ -= 1
+                    br_ = BreakRing(smi, depth_)
+                    broken_rings = br_.get_broken_ring()
+                if len(broken_rings) == 0:
+                    print(f"Trying force breaking for {smi} {id_name_dict[idx]}... ", end="")
+                    br_ = BreakRing(smi, 0, force=True)
+                    broken_rings = br_.get_broken_ring()
+                    if len(broken_rings) == 0:
+                        print("Input ring cannot be broken")
+                        failed[idx] = [smi]
+                    else:
+                        print("Success!")
+                        forced[idx + 'b'] = broken_rings
+                        valid[idx] = [smi]
+                else:
+                    print(f"Relaxed ring breaking restrictions for Input {smi} {id_name_dict[idx]}")
+                    relaxed[idx + 'b'] = broken_rings
+                    valid[idx] = [smi]
+            else:
+                print(f"Normal ring breaking for Input {smi} {id_name_dict[idx]}")
+                normal[idx + 'b'] = broken_rings
+                valid[idx] = [smi]
+        else:
+            print(f"Invaid SMILES: {smi} for {id_name_dict[idx]}")
+
+    print('Total number of input SMILES: ', len(dct))
+    print('Number of normal broken SMILES: ', len(normal))
+    print('Number of relaxed broken SMILES: ', len(relaxed))
+    print('Number of forced broken SMILES: ', len(forced))
+    print('Number of failed broken SMILES: ', len(failed))
+    print('Number of valid rings: ', len(valid))
+
+    print('Writing the rings and broken rings into smi file...')
+    folder = os.path.dirname(os.path.abspath(path))
+    basename = os.path.basename(path).split('.')[0]
+    out_path = os.path.join(folder, f'{basename}_rings_and_broken_rings.smi')
+    name_id_path = os.path.join(folder, 'name_id_dict.txt')
+    # only keep 1 broken ring for normal and relaxed cases
+    normal = {k: v[:1] for k, v in normal.items()}
+    relaxed = {k: v[:1] for k, v in relaxed.items()}
+
+    # combine all dictionaries into one
+    all_data = {**valid, **normal, **relaxed, **forced}
+    all_data_sorted = sorted([(k, v) for k, v in all_data.items()], key=lambda x: x[0])
+
+    with open(out_path, 'w') as f:
+        for id, smiles in all_data_sorted:
+            if len(smiles) == 1:
+                f.write(f"{smiles[0]} {id}\n")
+            else:
+                for i, smi in enumerate(smiles):
+                    f.write(f"{smi} {id}_{i}\n")
+
+    with open(name_id_path, 'w') as f:
+        for k, v in name_id_dict.items():
+            f.write(f"{k} {v}\n")
+    return out_path
+
+
+
+def sdf2rse(path: str):
+    '''Given an SDF file containing conformers
+    (ID formats: 1 and 1b for a pair of rings and broken rings),
+    return a csv file containing the RSE values'''
+    path = path
+    # AIMNet2 ethane
+    print('Using AIMNet2 ethane as reference...')
+    ethane_h = -79.79468799014762
+    folder = os.path.dirname(os.path.abspath(path))
+    basename = os.path.basename(path).split('.')[0]
+    rse_path = os.path.join(folder, f'{basename}_rse.csv')
+
+    mols = {}
+    supp = Chem.SDMolSupplier(path)
+    for mol in supp:
+        id = mol.GetProp('_Name')
+        if id not in mols:
+            mols[id] = mol
+        else:
+            prev_e = float(mols[id].GetProp('E_tot'))
+            e = float(mol.GetProp('E_tot'))
+            if e < prev_e:
+                mols[id] = mol
+    
+
+if __name__ == "__main__":
+    # prepare broken rings in smi format
+    path = '/home/jack/Ring_Atlas/examples/files/rings.smi'
+    outpath = process_smi(path)
+    print(outpath)
+    # conformer search and thermodynamical calculation with Auto3D
+
+    # Compute RSE and save in csv file
