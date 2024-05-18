@@ -5,10 +5,12 @@ sys.path.append(root)
 import copy
 from rdkit import Chem
 from rdkit.Chem import BondStereo, BondDir
-# from rdkit.Chem import Draw
 import itertools
+import pandas as pd
 from typing import Tuple, List, Optional, Dict
-# from utils import visualize_mol_idx
+from Auto3D.auto3D import options, main
+from Auto3D.ASE.thermo import calc_thermo
+from Auto3D.utils import hartree2kcalpermol
 
 
 class BreakRing(object):
@@ -380,15 +382,18 @@ def process_smi(path: str, depth: int=1):
     with open(name_id_path, 'w') as f:
         for k, v in name_id_dict.items():
             f.write(f"{k} {v}\n")
-    return out_path
+    
+    print(f'Output file is saved at {out_path}')
+    print(f'Name ID dictionary is saved at {name_id_path}')
+    return out_path, name_id_path
 
 
 
 def sdf2rse(path: str):
     '''Given an SDF file containing conformers
-    (ID formats: 1 and 1b for a pair of rings and broken rings),
+    (each conformer ID has to be digits or digits + 'b', for exampple, 1 and 1b)
     return a csv file containing the RSE values'''
-    path = path
+    # path = path
     # AIMNet2 ethane
     print('Using AIMNet2 ethane as reference...')
     ethane_h = -79.79468799014762
@@ -396,24 +401,90 @@ def sdf2rse(path: str):
     basename = os.path.basename(path).split('.')[0]
     rse_path = os.path.join(folder, f'{basename}_rse.csv')
 
+    # only keep the lowest energy conformer for each molecule
     mols = {}
     supp = Chem.SDMolSupplier(path)
     for mol in supp:
         id = mol.GetProp('_Name')
-        if id not in mols:
-            mols[id] = mol
-        else:
-            prev_e = float(mols[id].GetProp('E_tot'))
-            e = float(mol.GetProp('E_tot'))
-            if e < prev_e:
+        if '_' in id:
+            id = id.split('_')[0]
+            if id in mols:
+                prev_e = float(mols[id].GetProp('E_tot'))
+                e = float(mol.GetProp('E_tot'))
+                if e < prev_e:
+                    mols[id] = mol
+            else:
                 mols[id] = mol
+        else:
+            mols[id] = mol
+
+    # compute RSE
+    data = []
+    for id, mol in mols.items():
+        if id.isdigit() and ((id + 'b') in mols):
+            mol_b = mols[id + 'b']
+            h = float(mol.GetProp('H_hartree'))
+            h_b = float(mol_b.GetProp('H_hartree'))
+            rse = round((h + ethane_h - h_b) * hartree2kcalpermol, 2)
+
+            ring_smi = Chem.MolToSmiles(mol, doRandom=False, isomericSmiles=True)
+            broken_smi = Chem.MolToSmiles(mol_b, doRandom=False, isomericSmiles=True)
+            data.append([id, ring_smi, rse, broken_smi])
     
+    df = pd.DataFrame(data, columns=['ID', 'Ring', 'RSE (kcal/mol)', 'Broken Ring'])
+    df.to_csv(rse_path, index=False)
+    return rse_path
+
+
+def add_names_to_rse(rse_path: str, name_id_path: str):
+    '''Given the rse csv file and name_id_dict.txt file,
+    return a csv file with names'''
+    df = pd.read_csv(rse_path)
+    id_name_dict = {}
+    with open(name_id_path, 'r') as f:
+        data = f.readlines()
+    for line in data:
+        name, id = line.strip().split()
+        id_name_dict[id] = name
+    df['Name'] = df['ID'].apply(lambda x: id_name_dict[str(x)])
+    df = df[['Name', 'Ring', 'RSE (kcal/mol)', 'Broken Ring']]
+    df.to_csv(rse_path, index=False)
+    return rse_path
+
 
 if __name__ == "__main__":
-    # prepare broken rings in smi format
-    path = '/home/jack/Ring_Atlas/examples/files/rings.smi'
-    outpath = process_smi(path)
-    print(outpath)
-    # conformer search and thermodynamical calculation with Auto3D
+    import argparse
+    
 
-    # Compute RSE and save in csv file
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path', type=str, help='Path to the input SMI file')
+    parser.add_argument('--gpu_idx', nargs='?', default=False, const=True, type=int,
+                        help='GPU index')
+    args = parser.parse_args()
+
+    # path = '/home/jack/Ring_Atlas/examples/files/rings.smi'
+    print('Step 1: Breaking rings...')
+    path, name_id_path = process_smi(args.path)
+    print()
+
+    print('Step 2: Conformer search with Auto3D...')
+    if args.gpu_idx >= 0:
+        sdf = main(options(path, k=1, gpu_idx=args.gpu_idx))
+    else:
+        sdf = main(options(path, k=1, use_gpu=False))
+    print()
+
+    # sdf = '/home/jack/Ring_Atlas/examples/files/rings_rings_and_broken_rings_20240518-165349-196545/rings_rings_and_broken_rings_out.sdf'
+    print('Step 3: Compute thermodynamical properties with Auto3D...')
+    if args.gpu_idx >= 0:
+        sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=args.gpu_idx)
+    else:
+        sdf = calc_thermo(sdf, model_name='AIMNET')
+    print(sdf)
+    print()
+
+    # sdf = '/home/jack/Ring_Atlas/examples/files/rings_rings_and_broken_rings_20240518-165349-196545/rings_rings_and_broken_rings_out_AIMNET_G.sdf'
+    # name_id_path = '/home/jack/Ring_Atlas/examples/files/name_id_dict.txt'
+    print('Step 4: Compute RSE and save in csv file...')
+    rse_path = add_names_to_rse(sdf2rse(sdf), name_id_path)
+    print(rse_path)

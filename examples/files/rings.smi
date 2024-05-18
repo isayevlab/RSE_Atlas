@@ -1,4 +1,3 @@
-CC1CCCOCC1  smi1
-CC1COCC(C)=C1 smi2
-C1C=C1 smi3
-C1=CCC1 smi4
+C1CC1 smi1
+C1CNC1 smi2
+[H]/N=C/1\CNCC1=O smi3
