@@ -390,6 +390,30 @@ def process_smi(path: str, depth: int=1):
     return out_path, name_id_path
 
 
+def _keep_lowest_energy(path: str):
+    # only keep the lowest energy conformer for each molecule
+    mols = {}
+    supp = Chem.SDMolSupplier(path, removeHs=False)
+    for mol in supp:
+        id = mol.GetProp('_Name')
+        if '_' in id:
+            id = id.split('_')[0]
+            mol.SetProp('_Name', id)
+            if id in mols:
+                prev_e = float(mols[id].GetProp('E_tot'))
+                e = float(mol.GetProp('E_tot'))
+                if e < prev_e:
+                    mols[id] = mol
+            else:
+                mols[id] = mol
+        else:
+            mols[id] = mol
+    
+    os.remove(path)
+    with Chem.SDWriter(path) as w:
+        for mol in mols.values():
+            w.write(mol)
+    return path
 
 def sdf2rse(path: str):
     '''Given an SDF file containing conformers
@@ -405,20 +429,10 @@ def sdf2rse(path: str):
 
     # only keep the lowest energy conformer for each molecule
     mols = {}
-    supp = Chem.SDMolSupplier(path)
+    supp = Chem.SDMolSupplier(path, removeHs=True)
     for mol in supp:
         id = mol.GetProp('_Name')
-        if '_' in id:
-            id = id.split('_')[0]
-            if id in mols:
-                prev_e = float(mols[id].GetProp('E_tot'))
-                e = float(mol.GetProp('E_tot'))
-                if e < prev_e:
-                    mols[id] = mol
-            else:
-                mols[id] = mol
-        else:
-            mols[id] = mol
+        mols[id] = mol
 
     # compute RSE
     data = []
@@ -469,6 +483,7 @@ def compute_rse(smi: str, gpu_idx: Optional[int]=False):
             sdf = main(options(path, k=1, gpu_idx=gpu_idx))
         else:
             sdf = main(options(path, k=1, use_gpu=False))
+        sdf = _keep_lowest_energy(sdf)
         print()
 
         print('Step 3: Compute thermodynamical properties with Auto3D...')
@@ -483,7 +498,8 @@ def compute_rse(smi: str, gpu_idx: Optional[int]=False):
         print('Step 4: Compute RSE and save in csv file...')
         rse_path = add_names_to_rse(sdf2rse(sdf), name_id_path)
         shutil.copy(rse_path, real_rse_path)
-        print(rse_path)
+        print(real_rse_path)
+    return real_rse_path
 
 
 def compute_rse_cli():
