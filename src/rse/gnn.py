@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import pickle
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data, Dataset
@@ -9,13 +8,11 @@ from rdkit.Chem.rdchem import BondType as BT
 from rdkit.Chem.rdchem import HybridizationType
 import os
 import glob
-import h5py
-from tqdm import tqdm
 import networkx as nx
 from typing import List
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, Linear, ReLU, Dropout, CrossEntropyLoss
+from torch.nn import Sequential, Linear, ReLU
 from torch_geometric.loader import DataLoader
 from torch_geometric.nn import NNConv
 from torch_geometric.nn.aggr import SumAggregation
@@ -336,7 +333,7 @@ def predict_rse(smi: str, gpu_idx: Optional[int]=False):
         device = torch.device('cpu')
 
     # load the model
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    root = os.path.dirname(os.path.abspath(__file__))
     model_paths = os.path.join(root, 'models', '*.tar.gz')
     model_files = sorted(glob.glob(model_paths))
     model_ensemble = GnnEnsemble(model_files, device=device)

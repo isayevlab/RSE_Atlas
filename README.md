@@ -26,7 +26,7 @@ The code can be installed following the steps below:
 ```
 git clone https://github.com/isayevlab/Ring_Atlas.git
 cd Ring_Atlas
-pip install -e .
+pip install .
 ```
 
 ### Predict RSE using pre-trained GNN models
