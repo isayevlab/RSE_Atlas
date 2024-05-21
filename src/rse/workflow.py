@@ -479,7 +479,7 @@ def compute_rse(smi: str, gpu_idx: Optional[int]=False):
         print()
 
         print('Step 2: Conformer search with Auto3D...')
-        if gpu_idx >= 0:
+        if (gpu_idx is not False) and (gpu_idx >= 0):
             sdf = main(options(path, k=1, gpu_idx=gpu_idx))
         else:
             sdf = main(options(path, k=1, use_gpu=False))
@@ -487,7 +487,7 @@ def compute_rse(smi: str, gpu_idx: Optional[int]=False):
         print()
 
         print('Step 3: Compute thermodynamical properties with Auto3D...')
-        if gpu_idx >= 0:
+        if (gpu_idx is not False) and (gpu_idx >= 0):
             sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=gpu_idx)
         else:
             sdf = calc_thermo(sdf, model_name='AIMNET')
