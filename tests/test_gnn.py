@@ -21,3 +21,6 @@ def test_predict_rse():
     assert abs(df.loc['smi3', 'RSE (kcal/mol)'] - 17.0) < 3.5
     sdf_path = rse_path.replace('.csv', '.sdf')
     os.remove(rse_path)
+
+if __name__ == '__main__':
+    test_predict_rse()
