@@ -18,10 +18,11 @@ In addition to experimental methods and QM methods, this work provides 2 additio
 
 ### Installation
 To run the above methods, the following packages are required:
-```
+
 1. Python >= 3.7
 2. PyTorch >= 2.1.0
-```
+3. [Auto3D](https://pypi.org/project/Auto3D/) >= 2.2.11
+
 The code can be installed following the steps below:
 ```
 git clone https://github.com/isayevlab/Ring_Atlas.git
