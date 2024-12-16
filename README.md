@@ -25,7 +25,7 @@ To run the above methods, the following packages are required:
 
 The code can be installed following the steps below:
 ```
-git clone https://github.com/isayevlab/Ring_Atlas.git
+https://github.com/isayevlab/RSE_Atlas.git
 cd Ring_Atlas
 pip install .
 ```
