@@ -468,27 +468,31 @@ def add_names_to_rse(rse_path: str, name_id_path: str):
     return rse_path
 
 
-def compute_rse(smi: str, gpu_idx: Optional[int]=False):
-    real_sdf_path = smi.replace('.smi', '.sdf')
-    real_rse_path = smi.replace('.smi', '.csv')
+def compute_rse(args):
+    real_sdf_path = args.path.replace('.smi', '.sdf')
+    real_rse_path = args.path.replace('.smi', '.csv')
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        path = shutil.copy(smi, temp_dir)
+        path = shutil.copy(args.path, temp_dir)
         print('Step 1: Breaking rings...')
         path, name_id_path = process_smi(path)
         print()
 
         print('Step 2: Conformer search with Auto3D...')
-        if (gpu_idx is not False) and (gpu_idx >= 0):
-            sdf = main(options(path, k=1, gpu_idx=gpu_idx))
+        if (args.gpu_idx is not False) and (args.gpu_idx >= 0):
+            sdf = main(options(path, k=1,
+                               isomer_engine=args.isomer_engine,
+                               gpu_idx=args.gpu_idx))
         else:
-            sdf = main(options(path, k=1, use_gpu=False))
+            sdf = main(options(path, k=1,
+                               isomer_engine=args.isomer_engine,
+                               use_gpu=False))
         sdf = _keep_lowest_energy(sdf)
         print()
 
         print('Step 3: Compute thermodynamical properties with Auto3D...')
-        if (gpu_idx is not False) and (gpu_idx >= 0):
-            sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=gpu_idx)
+        if (args.gpu_idx is not False) and (args.gpu_idx >= 0):
+            sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=args.gpu_idx)
         else:
             sdf = calc_thermo(sdf, model_name='AIMNET')
         print(sdf)
@@ -507,11 +511,13 @@ def compute_rse_cli():
     
     parser = argparse.ArgumentParser()
     parser.add_argument('path', type=str, help='Path to the input SMI file')
+    parser.add_argument('--isomer_engine', type=str, default='rdkit',
+                        help='Either rdkit or omega. For omega, please set your OE_LICENSE environment variable as the path to your license file')
     parser.add_argument('--gpu_idx', nargs='?', default=False, const=True, type=int,
                         help='GPU index')
     args = parser.parse_args()
 
-    compute_rse(args.path, args.gpu_idx)
+    compute_rse(args)
 
 
 if __name__ == '__main__':
