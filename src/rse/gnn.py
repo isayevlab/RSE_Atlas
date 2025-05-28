@@ -123,7 +123,8 @@ class SMILES2Graph(object):
             atom_symbol = atom.GetSymbol()
             chiral_tag = str(atom.GetChiralTag())
 
-            type_idx.append(self.types[atom_symbol])
+            type_idx.append(self.types.get(atom_symbol, 8))
+            print('WARNING: Unknown atom type shares the index 8')
             chirals.append(self.chirals[chiral_tag])
             if atom_idx in self.ring_atom_idxes:
                 in_ring.append(1)

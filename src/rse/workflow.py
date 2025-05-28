@@ -419,8 +419,7 @@ def sdf2rse(path: str):
     '''Given an SDF file containing conformers
     (each conformer ID has to be digits or digits + 'b', for exampple, 1 and 1b)
     return a csv file containing the RSE values'''
-    # path = path
-    # AIMNet2 ethane
+
     print('Using AIMNet2 ethane as reference...')
     ethane_h = -79.79468799014762
     folder = os.path.dirname(os.path.abspath(path))
@@ -431,8 +430,9 @@ def sdf2rse(path: str):
     mols = {}
     supp = Chem.SDMolSupplier(path, removeHs=True)
     for mol in supp:
-        id = mol.GetProp('_Name')
-        mols[id] = mol
+        if mol.HasProp('H_hartree'):
+            id = mol.GetProp('_Name')
+            mols[id] = mol
 
     # compute RSE
     data = []
@@ -498,6 +498,9 @@ def compute_rse(args):
         print(sdf)
         shutil.copy(sdf, real_sdf_path)
         print()
+
+        # print('!!!temporary step!!!')
+        # shutil.copytree(temp_dir, )
 
         print('Step 4: Compute RSE and save in csv file...')
         rse_path = add_names_to_rse(sdf2rse(sdf), name_id_path)
