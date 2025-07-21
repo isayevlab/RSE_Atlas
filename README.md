@@ -32,4 +32,4 @@ The workflow also outputs the final conformers for the rings and broken rings (m
 
 ## Ring Atlas
 
-A interactive visualization for the Ring Atlas is available at https://zhen.pythonanywhere.com/. This website visualzies about 10% of the Ring Atlas, and provides a search bar for querying the database. The full dataset can be downloaded as a CSV file from the paper Supporting Information.
+A interactive visualization for the Ring Atlas is available at https://zhen.pythonanywhere.com/. This website visualzies about 10% of the Ring Atlas, and provides a search bar for querying the database. The full dataset can be downloaded as a CSV file at [here](https://github.com/isayevlab/RSE_Atlas/blob/08ef10efbd74b6d027b5c1d6312d8604eebb9d16/rse_atlas.csv).
