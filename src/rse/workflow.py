@@ -479,19 +479,21 @@ def compute_rse(args):
         print()
 
         print('Step 2: Conformer search with Auto3D...')
-        if (args.gpu_idx is not False) and (args.gpu_idx >= 0):
+        if args.gpu_idx is not None:
             sdf = main(options(path, k=1,
                                isomer_engine=args.isomer_engine,
+                               mode_oe=args.mode_oe,
                                gpu_idx=args.gpu_idx))
         else:
             sdf = main(options(path, k=1,
                                isomer_engine=args.isomer_engine,
+                               mode_oe=args.mode_oe,
                                use_gpu=False))
         sdf = _keep_lowest_energy(sdf)
         print()
 
         print('Step 3: Compute thermodynamical properties with Auto3D...')
-        if (args.gpu_idx is not False) and (args.gpu_idx >= 0):
+        if args.gpu_idx is not None:
             sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=args.gpu_idx)
         else:
             sdf = calc_thermo(sdf, model_name='AIMNET')
@@ -516,8 +518,10 @@ def compute_rse_cli():
     parser.add_argument('path', type=str, help='Path to the input SMI file')
     parser.add_argument('--isomer_engine', type=str, default='rdkit',
                         help='Either rdkit or omega. For omega, please set your OE_LICENSE environment variable as the path to your license file')
-    parser.add_argument('--gpu_idx', nargs='?', default=False, const=True, type=int,
-                        help='GPU index')
+    parser.add_argument('--mode_oe', type=str, default='classic',
+                        help="Mode for OpenEye Omega. It can be either 'classic', 'macrocycle', 'dense', 'pose', 'rocs' or 'fast_rocs'. By default, the 'classic' mode is used.")
+    parser.add_argument('--gpu_idx', type=int, default=None,
+                        help='GPU index (integer). If not specified, CPU will be used')
     args = parser.parse_args()
 
     compute_rse(args)
