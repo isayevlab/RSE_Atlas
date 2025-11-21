@@ -468,41 +468,50 @@ def add_names_to_rse(rse_path: str, name_id_path: str):
     return rse_path
 
 
-def compute_rse(args):
-    real_sdf_path = args.path.replace('.smi', '.sdf')
-    real_rse_path = args.path.replace('.smi', '.csv')
+def compute_rse_core(path, isomer_engine='rdkit', mode_oe='classic', gpu_idx=None):
+    """
+    Core RSE computation function that takes direct arguments.
+    
+    Args:
+        path (str): Path to the input SMI file
+        isomer_engine (str): Either 'rdkit' or 'omega' (default: 'rdkit')
+        mode_oe (str): Mode for OpenEye Omega (default: 'classic')
+        gpu_idx (int or None): GPU index, None for CPU (default: None)
+    
+    Returns:
+        str: Path to the output CSV file containing RSE results
+    """
+    real_sdf_path = path.replace('.smi', '.sdf')
+    real_rse_path = path.replace('.smi', '.csv')
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        path = shutil.copy(args.path, temp_dir)
+        temp_path = shutil.copy(path, temp_dir)
         print('Step 1: Breaking rings...')
-        path, name_id_path = process_smi(path)
+        temp_path, name_id_path = process_smi(temp_path)
         print()
 
         print('Step 2: Conformer search with Auto3D...')
-        if args.gpu_idx is not None:
-            sdf = main(options(path, k=1,
-                               isomer_engine=args.isomer_engine,
-                               mode_oe=args.mode_oe,
-                               gpu_idx=args.gpu_idx))
+        if gpu_idx is not None:
+            sdf = main(options(temp_path, k=1,
+                               isomer_engine=isomer_engine,
+                               mode_oe=mode_oe,
+                               gpu_idx=gpu_idx))
         else:
-            sdf = main(options(path, k=1,
-                               isomer_engine=args.isomer_engine,
-                               mode_oe=args.mode_oe,
+            sdf = main(options(temp_path, k=1,
+                               isomer_engine=isomer_engine,
+                               mode_oe=mode_oe,
                                use_gpu=False))
         sdf = _keep_lowest_energy(sdf)
         print()
 
         print('Step 3: Compute thermodynamical properties with Auto3D...')
-        if args.gpu_idx is not None:
-            sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=args.gpu_idx)
+        if gpu_idx is not None:
+            sdf = calc_thermo(sdf, model_name='AIMNET', gpu_idx=gpu_idx)
         else:
             sdf = calc_thermo(sdf, model_name='AIMNET')
         print(sdf)
         shutil.copy(sdf, real_sdf_path)
         print()
-
-        # print('!!!temporary step!!!')
-        # shutil.copytree(temp_dir, )
 
         print('Step 4: Compute RSE and save in csv file...')
         rse_path = add_names_to_rse(sdf2rse(sdf), name_id_path)
@@ -511,7 +520,21 @@ def compute_rse(args):
     return real_rse_path
 
 
+def compute_rse(args):
+    """
+    Wrapper function for compute_rse_core that handles argparse objects.
+    This maintains backward compatibility with existing CLI usage.
+    """
+    return compute_rse_core(
+        path=args.path,
+        isomer_engine=args.isomer_engine,
+        mode_oe=args.mode_oe,
+        gpu_idx=args.gpu_idx
+    )
+
+
 def compute_rse_cli():
+    """Command-line interface for RSE computation."""
     import argparse
     
     parser = argparse.ArgumentParser()
